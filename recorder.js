@@ -21,6 +21,7 @@ var Recorder = function( config ){
   this.config.maxBuffersPerPage = config.maxBuffersPerPage || 40;
   this.config.encoderApplication = config.encoderApplication || 2049;
   this.config.encoderFrameSize = config.encoderFrameSize || 20;
+  this.config.rawData = config.rawData || false;
   this.config.streamOptions = config.streamOptions || {
     optional: [],
     mandatory: {
@@ -212,7 +213,7 @@ Recorder.prototype.storePage = function( page ) {
     }
 
     this.eventTarget.dispatchEvent( new CustomEvent( 'dataAvailable', {
-      detail: new Blob( [outputData], { type: "audio/ogg" } )
+      detail: this.config.rawData ? outputData : new Blob( [outputData], { type: "audio/ogg" } )
     }));
 
     this.recordedPages = [];
@@ -222,7 +223,7 @@ Recorder.prototype.storePage = function( page ) {
 
 Recorder.prototype.streamPage = function( page ) {
   this.eventTarget.dispatchEvent( new CustomEvent( 'dataAvailable', {
-    detail: new Blob( [page], { type: "audio/ogg" } )
+    detail: this.config.rawData ? page : new Blob( [page], { type: "audio/ogg" } )
   }));
 
   // Stream is finished
