@@ -24,6 +24,7 @@ Creates a recorder instance.
 - **maxBuffersPerPage** - (*optional*) Specifies the maximum number of buffers to use before generating an Ogg page. This can be used to lower the streaming latency. The lower the value the more overhead the ogg stream will incur. Defaults to `40`.
 - **monitorGain** - (*optional*) Sets the gain of the monitoring output. Gain is an a-weighted value between `0` and `1`. Defaults to `0`
 - **numberOfChannels** - (*optional*) The number of channels to record. `1` = mono, `2` = stereo. Defaults to `1`. Maximum `2` channels are supported.
+- **rawData** - (*optional*) Returns raw data as opposed to Blob from `dataAvailable`. Defaults to `false`.
 - **streamPages** - (*optional*) Library will fire `dataAvailable` event after each encoded page. Defaults to `false`.
 
 
