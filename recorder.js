@@ -226,4 +226,4 @@ Recorder.prototype.streamPage = function( page ) {
   }
 };
 
-module.exports.Recorder;
+module.exports = Recorder;
