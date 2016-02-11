@@ -225,3 +225,5 @@ Recorder.prototype.streamPage = function( page ) {
     this.eventTarget.dispatchEvent( new Event( 'stop' ) );
   }
 };
+
+module.exports = Recorder;
