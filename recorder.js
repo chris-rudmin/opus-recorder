@@ -81,7 +81,7 @@ Recorder.prototype.createButterworthFilter = function(){
   this.filterNode3 = this.audioContext.createBiquadFilter();
   this.filterNode.type = this.filterNode2.type = this.filterNode3.type = "lowpass";
 
-  var nyquistFreq = this.config.sampleRate / 2;
+  var nyquistFreq = this.audioContext.sampleRate / 2;
   this.filterNode.frequency.value = this.filterNode2.frequency.value = this.filterNode3.frequency.value = nyquistFreq - ( nyquistFreq / 3.5355 );
   this.filterNode.Q.value = 0.51764;
   this.filterNode2.Q.value = 0.70711;
