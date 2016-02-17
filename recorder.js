@@ -102,7 +102,6 @@ Recorder.prototype.encodeBuffers = function( inputBuffer ){
     this.encoder.postMessage({ command: "encode", buffers: buffers });
     this.duration += inputBuffer.duration;
     this.eventTarget.dispatchEvent( new CustomEvent( 'duration', { detail: this.duration } ) );
-    this.eventTarget.dispatchEvent( new CustomEvent( 'channel', { detail: buffers[0] } ) );
   }
 };
 
