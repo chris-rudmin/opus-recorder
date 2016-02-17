@@ -21,6 +21,7 @@ var Recorder = function( config ){
   this.config.maxBuffersPerPage = config.maxBuffersPerPage || 40;
   this.config.encoderApplication = config.encoderApplication || 2049;
   this.config.encoderFrameSize = config.encoderFrameSize || 20;
+  this.config.rawData = config.rawData || false;
   this.config.streamOptions = config.streamOptions || {
     optional: [],
     mandatory: {
@@ -48,9 +49,13 @@ Recorder.prototype.audioContext = new window.AudioContext();
 
 Recorder.prototype.clearStream = function() {
   if ( this.stream ) {
-    this.stream.getTracks().forEach(function ( track ) {
-      track.stop();
-    });
+    if ( this.stream.getTracks ) {
+      this.stream.getTracks().forEach(function ( track ) {
+        track.stop();
+      });
+    }
+    else
+      this.stream.stop(); // old browsers
     delete this.stream;
   }
 };
@@ -76,7 +81,7 @@ Recorder.prototype.createButterworthFilter = function(){
   this.filterNode3 = this.audioContext.createBiquadFilter();
   this.filterNode.type = this.filterNode2.type = this.filterNode3.type = "lowpass";
 
-  var nyquistFreq = this.config.sampleRate / 2;
+  var nyquistFreq = this.audioContext.sampleRate / 2;
   this.filterNode.frequency.value = this.filterNode2.frequency.value = this.filterNode3.frequency.value = nyquistFreq - ( nyquistFreq / 3.5355 );
   this.filterNode.Q.value = 0.51764;
   this.filterNode2.Q.value = 0.70711;
@@ -207,7 +212,7 @@ Recorder.prototype.storePage = function( page ) {
     }
 
     this.eventTarget.dispatchEvent( new CustomEvent( 'dataAvailable', {
-      detail: new Blob( [outputData], { type: "audio/ogg" } )
+      detail: this.config.rawData ? outputData : new Blob( [outputData], { type: "audio/ogg" } )
     }));
 
     this.recordedPages = [];
@@ -217,7 +222,7 @@ Recorder.prototype.storePage = function( page ) {
 
 Recorder.prototype.streamPage = function( page ) {
   this.eventTarget.dispatchEvent( new CustomEvent( 'dataAvailable', {
-    detail: new Blob( [page], { type: "audio/ogg" } )
+    detail: this.config.rawData ? page : new Blob( [page], { type: "audio/ogg" } )
   }));
 
   // Stream is finished
