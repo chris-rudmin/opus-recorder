@@ -70,7 +70,8 @@
         numberOfChannels: parseInt(numberOfChannels.value, 10),
         bitRate: parseInt(bitRate.value,10),
         encoderSampleRate: parseInt(encoderSampleRate.value,10),
-        encoderPath: "../build/encoderWorker.min.js"
+        encoderPath: "../build/encoderWorker.min.js",
+        streamPages: true
       });
 
       recorder.addEventListener( "start", function(e){
