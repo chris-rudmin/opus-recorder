@@ -32,6 +32,8 @@ Creates a recorder instance.
 - **numberOfChannels** - (*optional*) The number of channels to record. `1` = mono, `2` = stereo. Defaults to `1`. Maximum `2` channels are supported.
 - **resampleQuality** - (*optional*) Value between 0 and 10 which determines latency and processing for resampling. `0` is fastest with lowest quality. `10` is slowest with highest quality. Defaults to `3`.
 - **streamPages** - (*optional*) Library will fire `dataAvailable` event after each encoded page. Defaults to `false`.
+- **analyserFftSize** - (*optional*) Library will fire `volume` event according to the fftSize of the analyser. Defaults to `1024`.
+- **analyserSmoothing** - (*optional*) Library will fire `volume` event according to the smoothingTimeConstant of the analyser. Defaults to `0.3`.
 
 
 ---------
@@ -41,7 +43,7 @@ Creates a recorder instance.
 rec.addEventListener( type, listener[, useCapture] )
 ```
 
-**addEventListener** will add an event listener to the event target. Available events are `streamError`, `streamReady`, `dataAvailable`, `start`, `pause`, `resume` and `stop`.
+**addEventListener** will add an event listener to the event target. Available events are `streamError`, `streamReady`, `dataAvailable`, `volume`, `start`, `pause`, `resume` and `stop`.
 
 ```js
 rec.initStream()

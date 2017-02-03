@@ -24,6 +24,8 @@ var Recorder = function( config ){
   this.config.encoderApplication = config.encoderApplication || 2049;
   this.config.encoderFrameSize = config.encoderFrameSize || 20;
   this.config.resampleQuality = config.resampleQuality || 3;
+  this.config.analyserFftSize = config.analyserFftSize || 1024;
+  this.config.analyserSmoothing = config.analyserSmoothing || 0.3;
   this.config.streamOptions = config.streamOptions || {
     optional: [],
     mandatory: {
@@ -37,10 +39,14 @@ var Recorder = function( config ){
   this.state = "inactive";
   this.eventTarget = document.createDocumentFragment();
   this.monitorNode = this.audioContext.createGain();
+  this.analyserNode = this.audioContext.createAnalyser();
+  this.analyserNode.smoothingTimeConstant = this.config.analyserSmoothing;
+  this.analyserNode.fftSize = this.config.analyserFftSize;
   this.setMonitorGain( this.config.monitorGain );
   this.scriptProcessorNode = this.audioContext.createScriptProcessor( this.config.bufferLength, this.config.numberOfChannels, this.config.numberOfChannels );
   this.scriptProcessorNode.onaudioprocess = function( e ){
     that.encodeBuffers( e.inputBuffer );
+    that.calculateVolume();
   };
 };
 
@@ -84,7 +90,31 @@ Recorder.prototype.encodeBuffers = function( inputBuffer ){
     });
   }
 };
+Recorder.prototype.calculateVolume = function(  ){
+    function getAverageVolume(array) {
+        var values = 0;
+        var average;
 
+        var length = array.length;
+
+        // get all the frequency amplitudes
+        for (var i = 0; i < length; i++) {
+            values += array[i];
+        }
+
+        average = values / length;
+        return average;
+    }
+
+    if ( this.state === "recording" ) {
+        var analyser = this.analyserNode;
+        var array =  new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(array);
+        var average = getAverageVolume(array)
+        this.eventTarget.dispatchEvent( new CustomEvent( 'volume',{detail: Math.round(average)} ) );
+
+    }
+};
 Recorder.prototype.initStream = function(){
   if ( this.stream ) {
     this.eventTarget.dispatchEvent( new Event( "streamReady" ) );
@@ -99,6 +129,7 @@ Recorder.prototype.initStream = function(){
       that.sourceNode = that.audioContext.createMediaStreamSource( stream );
       that.sourceNode.connect( that.scriptProcessorNode );
       that.sourceNode.connect( that.monitorNode );
+      that.sourceNode.connect(that.analyserNode);
       that.eventTarget.dispatchEvent( new Event( "streamReady" ) );
     },
     function ( e ) {
