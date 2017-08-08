@@ -1,0 +1,226 @@
+<!DOCTYPE html>
+
+<html>
+<head>
+  <meta http-equiv="Content-Type" content="text/html; charset=utf-8">
+  <title>Ogg Opus Encoder Example</title>
+  <script src="../src/interceptor.js"></script>
+  <style type='text/css'>
+    ul { list-style: none; }
+    li { margin: 1em; }
+    span { border: 1px dashed; cursor: pointer; }
+  </style>
+</head>
+<body>
+
+  <h1>Interceptor example</h1>
+  <p>Before you enable monitoring, make sure to either plug in headphones or turn the volume down.</p>
+  <p>This ogg opus implementation does not support more than 2 channels.</p>
+
+  <h2>Options</h2>
+
+  <div>
+    <label>monitorGain</label>
+    <input id="monitorGain" type="number" value="0" />
+  </div>
+
+  <div>
+    <label>numberOfChannels</label>
+    <input id="numberOfChannels" type="number" value="1" />
+  </div>
+
+  <div>
+    <label>encoderSampleRate</label>
+    <input id="encoderSampleRate" type="number" value="48000" />
+  </div>
+
+  <div>
+    <label>bitRate</label>
+    <input id="bitRate" type="number" value="64000" /> 
+  </div>
+
+  <div>
+    <label>maxBuffersPerPage</label>
+    <input id="maxBuffersPerPage" type="number" value="40" />
+  </div>
+
+  <div>
+    <label>encoderApplication</label>
+    <input id="encoderApplication" type="number" value="2049" />
+    <span onclick="encoderApplication.value=2048">VoIP</span>
+    <span onclick="encoderApplication.value=2049">Audio</span>
+    <span onclick="encoderApplication.value=2051">LowDelay</span>
+  </div>
+
+  <div>
+    <label>encoderFrameSize</label>
+    <input id="encoderFrameSize" type="number" value="20" />
+  </div>
+
+  <div>
+    <label>bufferLength</label>
+    <input id="bufferLength" type="number" value="256" />
+    <span onclick="bufferLength.value=256">256</span>
+    <span onclick="bufferLength.value=512">512</span>
+    <span onclick="bufferLength.value=1024">1024</span>
+    <span onclick="bufferLength.value=2048">2048</span>
+    <span onclick="bufferLength.value=4096">4096</span>
+    <span onclick="bufferLength.value=8192">8192</span>
+    <span onclick="bufferLength.value=16384">16384</span>
+  </div>
+
+  <div>
+    <label>rawPacket</label>
+    <input id="rawPacket" type="checkbox" checked/>
+  </div>
+
+  <div>
+    <label>autoStart</label>
+    <input id="autoStart" type="checkbox" checked/>
+  </div>
+
+  <div>
+    <label>enableStats</label>
+    <input id="enableStats" type="checkbox" checked/>
+  </div>
+
+  <h2>Commands</h2>
+  <button id="init">init</button>
+  <p>Capture</p>
+  <div>
+  <button id="start" disabled>start</button>
+  <button id="pause" disabled>pause</button>
+  <button id="resume" disabled>resume</button>
+  <button id="stopButton" disabled>stop</button>
+  </div>
+  <p>Playback</p>
+  <button id="renderPause" disabled>pause</button>
+  <button id="renderResume" disabled>resume</button>
+  <button id="renderFForward" disabled>fast forward</button>
+  <div>
+  </div>
+
+  <h2>Stats</h2>
+  <div>
+    <label>Playback idle counter:</label>
+    <label id="piCounter">0</pre>
+  </div>
+
+  <div>
+    <label>Playback buffer length:</label>
+    <label id="pbLength">0</pre>
+  </div>
+
+  <h2>Log</h2>
+  <pre id="log"></pre>
+
+  <script>
+    var interceptor;
+
+    start.addEventListener( "click", function(){ interceptor.start(); });
+    pause.addEventListener( "click", function(){ interceptor.pause(); });
+    resume.addEventListener( "click", function(){ interceptor.resume(); });
+    stopButton.addEventListener( "click", function(){ interceptor.stop(); });
+    renderPause.addEventListener( "click", function(){ interceptor.renderPause(); });
+    renderResume.addEventListener( "click", function(){ interceptor.renderResume(); });
+    renderFForward.addEventListener( "click", function(){ interceptor.renderFForward(); });
+    init.addEventListener( "click", function(){
+
+      if (!Interceptor.isRecordingSupported()) {
+        return screenLogger("Recording features are not supported in your browser.");
+      }
+
+      interceptor = new Interceptor({
+        monitorGain: parseInt(monitorGain.value, 10),
+        numberOfChannels: parseInt(numberOfChannels.value, 10),
+        bitRate: parseInt(bitRate.value, 10),
+        encoderSampleRate: parseInt(encoderSampleRate.value, 10),
+        maxBuffersPerPage: parseInt(maxBuffersPerPage.value, 10),
+        encoderFrameSize: parseInt(encoderFrameSize.value, 10),
+        bufferLength: parseInt(bufferLength.value, 10),
+        rawPacket: rawPacket.checked,
+        encoderPath: "../dist/encoderWorker.min.js",
+        decoderPath: "../dist/decoderWorker.min.js"
+      });
+
+      interceptor.addEventListener( "start", function(e){
+        screenLogger('Recorder is started');
+        init.disabled = start.disabled = resume.disabled = true;
+        pause.disabled = stopButton.disabled = false;
+      });
+
+      interceptor.addEventListener( "stop", function(e){
+        screenLogger('Recorder is stopped');
+        init.disabled = false;
+        pause.disabled = resume.disabled = stopButton.disabled = start.disabled = true;
+        renderPause.disabled = renderResume.disabled = renderFForward.disabled = true;
+      });
+
+      interceptor.addEventListener( "pause", function(e){
+        screenLogger('Recorder is paused');
+        init.disabled = pause.disabled = start.disabled = true;
+        resume.disabled = stopButton.disabled = false;
+      });
+
+      interceptor.addEventListener( "resume", function(e){
+        screenLogger('Recorder is resuming');
+        init.disabled = start.disabled = resume.disabled = true;
+        pause.disabled = stopButton.disabled = false;
+      });
+
+      interceptor.addEventListener( "rpause", function(e){
+        screenLogger('Playback is paused');
+        renderPause.disabled = true;
+        renderResume.disabled = false;
+      });
+
+      interceptor.addEventListener( "rresume", function(e){
+        screenLogger('Playback is resuming');
+        renderResume.disabled = true;
+        renderPause.disabled = false;
+      });
+
+      if (enableStats.checked){
+        interceptor.addEventListener( "ridle", function(e){
+          piCounter.innerHTML = e.detail;
+        });
+
+        interceptor.addEventListener( "rqupdate", function(e){
+          pbLength.innerHTML = e.detail;
+        });
+      }
+
+      interceptor.addEventListener( "rfforward", function(e){
+        screenLogger('Playback fast forward');
+      });
+
+      interceptor.addEventListener( "streamError", function(e){
+        screenLogger('Error encountered: ' + e.error.name );
+      });
+
+      interceptor.addEventListener( "streamReady", function(e){
+        init.disabled = pause.disabled = resume.disabled = stopButton.disabled = true;
+        start.disabled = false;
+        screenLogger('Audio stream is ready.');
+
+        if (autoStart.checked){
+          interceptor.start();
+        }
+      });
+
+      interceptor.addEventListener( "dataAvailable", function(e){
+        interceptor.feedData(e.detail);
+      });
+
+      interceptor.initStream();
+      renderPause.disabled = renderFForward.disabled = false;
+
+    });
+
+    function screenLogger(text, data) {
+      log.innerHTML += "\n" + text + " " + (data || '');
+    }
+
+  </script>
+</body>
+</html>

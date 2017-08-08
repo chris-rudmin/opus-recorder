@@ -41,6 +41,7 @@ var root = (typeof self === 'object' && self.self === self && self) || (typeof g
     this.bufferLength = config['bufferLength'] || 4096;
     this.resampleQuality = config['resampleQuality'] || 3; // Value between 0 and 10 inclusive. 10 being highest quality.
     this.bitRate = config['bitRate'];
+    this.rawPacket = config['rawPacket'] || false; // Bypass ogg multiplexer
 
     this.pageIndex = 0;
     this.granulePosition = 0;
@@ -101,7 +102,7 @@ var root = (typeof self === 'object' && self.self === self && self) || (typeof g
   OggOpusEncoder.prototype.encodeFinalFrame = function() {
     var finalFrameBuffers = [];
     for ( var i = 0; i < this.numberOfChannels; ++i ) {
-      finalFrameBuffers.push( new Float32Array( this.bufferLength - (this.resampleBufferIndex / this.numberOfChannels) ));
+      finalFrameBuffers.push( new Float32Array( (this.resampleBufferLength - this.resampleBufferIndex) / this.numberOfChannels ));
     }
     this.encode( finalFrameBuffers );
     this.headerType += 4;
@@ -119,6 +120,7 @@ var root = (typeof self === 'object' && self.self === self && self) || (typeof g
   };
 
   OggOpusEncoder.prototype.generateCommentPage = function(){
+    if ( this.rawPacket ) { return; }
     var segmentDataView = new DataView( this.segmentData.buffer );
     segmentDataView.setUint32( 0, 1937076303, true ) // Magic Signature 'Opus'
     segmentDataView.setUint32( 4, 1936154964, true ) // Magic Signature 'Tags'
@@ -134,6 +136,7 @@ var root = (typeof self === 'object' && self.self === self && self) || (typeof g
   };
 
   OggOpusEncoder.prototype.generateIdPage = function(){
+    if ( this.rawPacket ) { return; }
     var segmentDataView = new DataView( this.segmentData.buffer );
     segmentDataView.setUint32( 0, 1937076303, true ) // Magic Signature 'Opus'
     segmentDataView.setUint32( 4, 1684104520, true ) // Magic Signature 'Head'
@@ -150,6 +153,7 @@ var root = (typeof self === 'object' && self.self === self && self) || (typeof g
   };
 
   OggOpusEncoder.prototype.generatePage = function(){
+    if ( this.rawPacket ) { return; }
     var granulePosition = ( this.lastPositiveGranulePosition === this.granulePosition) ? -1 : this.granulePosition;
     var pageBuffer = new ArrayBuffer(  27 + this.segmentTableIndex + this.segmentDataIndex );
     var pageBufferView = new DataView( pageBuffer );
@@ -251,6 +255,14 @@ var root = (typeof self === 'object' && self.self === self && self) || (typeof g
 
   OggOpusEncoder.prototype.segmentPacket = function( packetLength ) {
     var packetIndex = 0;
+
+    if (this.rawPacket)
+    {
+      var page = new Uint8Array( HEAPU8.subarray(this.encoderOutputPointer, this.encoderOutputPointer + packetLength) );
+      global['postMessage']( page, [page.buffer] );
+
+      return;
+    }
 
     while ( packetLength >= 0 ) {
 

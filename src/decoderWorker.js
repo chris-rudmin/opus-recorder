@@ -30,10 +30,31 @@ var OggOpusDecoder = function( config ){
   this.decoderSampleRate = config['decoderSampleRate'] || 48000;
   this.outputBufferSampleRate = config['outputBufferSampleRate'] || 48000;
   this.resampleQuality = config['resampleQuality'] || 3;
+  this.rawPacket = config['rawPacket'] || false;
   this.outputBuffers = [];
+  if (this.rawPacket){ this.inited = false };
 };
 
 OggOpusDecoder.prototype.decode = function( typedArray ) {
+  if (this.rawPacket) {
+    if (!this.inited) {
+      this.numberOfChannels = typedArray[0] & 0x04 ? 2 : 1;
+      this.init();
+      this.inited = true;
+    }
+    this.decoderBuffer.set( typedArray );
+
+    // Decode raw opus packet
+    var outputSampleLength = _opus_decode_float( this.decoder, this.decoderBufferPointer, typedArray.length, this.decoderOutputPointer, this.decoderOutputMaxLength, 0);
+    var resampledLength = Math.ceil( outputSampleLength * this.outputBufferSampleRate / this.decoderSampleRate );
+    HEAP32[ this.decoderOutputLengthPointer >> 2 ] = outputSampleLength;
+    HEAP32[ this.resampleOutputLengthPointer >> 2 ] = resampledLength;
+    _speex_resampler_process_interleaved_float( this.resampler, this.decoderOutputPointer, this.decoderOutputLengthPointer, this.resampleOutputBufferPointer, this.resampleOutputLengthPointer );
+    this.sendToOutputBuffers( HEAPF32.subarray( this.resampleOutputBufferPointer >> 2, (this.resampleOutputBufferPointer >> 2) + resampledLength * this.numberOfChannels ) );
+    this.decoderBufferIndex = 0;
+
+    return;
+  }
   var dataView = new DataView( typedArray.buffer );
   this.getPageBoundaries( dataView ).map( function( pageStart ) {
     var headerType = dataView.getUint8( pageStart + 5, true );

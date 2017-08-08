@@ -4,15 +4,17 @@ var root = (typeof self === 'object' && self.self === self && self) || (typeof g
 
 (function( global ) {
 
-  var Recorder = function( config ){
+  var Interceptor = function( config ){
 
     var that = this;
 
-    if ( !Recorder.isRecordingSupported() ) {
+    if ( !Interceptor.isRecordingSupported() ) {
       throw new Error("Recording is not supported in this browser");
     }
 
     this.state = "inactive";
+    this.renderState = "running";
+    this.renderIdleCounter = 0;
     this.eventTarget = global.document.createDocumentFragment();
     this.audioContext = new global.AudioContext();
     this.monitorNode = this.audioContext.createGain();
@@ -24,10 +26,9 @@ var root = (typeof self === 'object' && self.self === self && self) || (typeof g
     this.config.numberOfChannels = config.numberOfChannels || 1;
     this.config.originalSampleRate = this.audioContext.sampleRate;
     this.config.encoderSampleRate = config.encoderSampleRate || 48000;
-    this.config.wavSampleRate = config.wavSampleRate || 44100;
-    this.config.wavBitDepth = config.wavSampleRate || 16;
     this.config.encoderPath = config.encoderPath || 'encoderWorker.min.js';
-    this.config.streamPages = config.streamPages || false;
+    this.config.decoderPath = config.decoderPath || 'decoderWorker.min.js';
+    this.config.streamPages = true; // always yield asap
     this.config.rawPacket = config.rawPacket || false;
     this.config.leaveStreamOpen = config.leaveStreamOpen || false;
     this.config.maxBuffersPerPage = config.maxBuffersPerPage || 40;
@@ -46,20 +47,53 @@ var root = (typeof self === 'object' && self.self === self && self) || (typeof g
 
     this.setMonitorGain( this.config.monitorGain );
     this.scriptProcessorNode = this.audioContext.createScriptProcessor( this.config.bufferLength, this.config.numberOfChannels, this.config.numberOfChannels );
+
+    this.renderQueue = new Array();
     this.scriptProcessorNode.onaudioprocess = function( e ){
       that.encodeBuffers( e.inputBuffer );
+      if ( that.renderQueue.length && that.renderState === "running" ) {
+        var buffer = that.renderQueue.shift();
+        for ( var i = 0; i < e.outputBuffer.numberOfChannels; i++ ) {
+          e.outputBuffer.copyToChannel(buffer[i], i);
+        }
+        that.eventTarget.dispatchEvent( new global.CustomEvent( "rqupdate", { detail: that.renderQueue.length } ) );
+      }
+
+      else {
+        ++that.renderIdleCounter;
+        that.eventTarget.dispatchEvent( new global.CustomEvent( "ridle", { detail: that.renderIdleCounter } ) );
+      }
     };
+
+    this.decoder = new global.Worker( this.config.decoderPath );
+      this.decoder.onmessage = function ( e ) {
+        if (e.data === null) {
+          // end of decode
+        }
+
+        else {
+          that.renderQueue.push( e.data );
+          that.eventTarget.dispatchEvent( new global.CustomEvent( "rqupdate", { detail: that.renderQueue.length } ) );
+        }
+    }
+    this.decoder.postMessage({ 
+      command:'init',
+      bufferLength: this.config.bufferLength,
+      decoderSampleRate: this.config.encoderSampleRate,
+      outputBufferSampleRate: this.audioContext.sampleRate,
+      rawPacket: this.config.rawPacket
+    });
   };
 
-  Recorder.isRecordingSupported = function(){
+  Interceptor.isRecordingSupported = function(){
     return global.AudioContext && global.navigator && ( global.navigator.getUserMedia || ( global.navigator.mediaDevices && global.navigator.mediaDevices.getUserMedia ) );
   };
 
-  Recorder.prototype.addEventListener = function( type, listener, useCapture ){
+  Interceptor.prototype.addEventListener = function( type, listener, useCapture ){
     this.eventTarget.addEventListener( type, listener, useCapture );
   };
 
-  Recorder.prototype.clearStream = function() {
+  Interceptor.prototype.clearStream = function() {
     if ( this.stream ) {
 
       if ( this.stream.getTracks ) {
@@ -76,7 +110,7 @@ var root = (typeof self === 'object' && self.self === self && self) || (typeof g
     }
   };
 
-  Recorder.prototype.encodeBuffers = function( inputBuffer ){
+  Interceptor.prototype.encodeBuffers = function( inputBuffer ){
     if ( this.state === "recording" ) {
       var buffers = [];
       for ( var i = 0; i < inputBuffer.numberOfChannels; i++ ) {
@@ -90,7 +124,7 @@ var root = (typeof self === 'object' && self.self === self && self) || (typeof g
     }
   };
 
-  Recorder.prototype.initStream = function(){
+  Interceptor.prototype.initStream = function(){
     var that = this;
 
     var onStreamInit = function( stream ){
@@ -124,52 +158,44 @@ var root = (typeof self === 'object' && self.self === self && self) || (typeof g
     }
   };
 
-  Recorder.prototype.pause = function(){
+  Interceptor.prototype.pause = function(){
     if ( this.state === "recording" ){
       this.state = "paused";
       this.eventTarget.dispatchEvent( new global.Event( 'pause' ) );
     }
   };
 
-  Recorder.prototype.removeEventListener = function( type, listener, useCapture ){
+  Interceptor.prototype.removeEventListener = function( type, listener, useCapture ){
     this.eventTarget.removeEventListener( type, listener, useCapture );
   };
 
-  Recorder.prototype.resume = function() {
+  Interceptor.prototype.resume = function() {
     if ( this.state === "paused" ) {
       this.state = "recording";
       this.eventTarget.dispatchEvent( new global.Event( 'resume' ) );
     }
   };
 
-  Recorder.prototype.setMonitorGain = function( gain ){
+  Interceptor.prototype.setMonitorGain = function( gain ){
     this.monitorNode.gain.value = gain;
   };
 
-  Recorder.prototype.start = function(){
+  Interceptor.prototype.start = function(){
     if ( this.state === "inactive" && this.stream ) {
       var that = this;
       this.encoder = new global.Worker( this.config.encoderPath );
 
-      if (this.config.rawPacket){
-        this.encoder.addEventListener( "message", function ( e ) {
-          that.streamPage( e.data );
-        });
-      }
+      this.encoder.addEventListener( "message", function ( e ) {
+        if ( e.data === null ) {
+          that.eventTarget.dispatchEvent( new global.Event( 'stop' ) );
+        }
 
-      else if (this.config.streamPages){
-        this.encoder.addEventListener( "message", function( e ) {
-          that.streamPage( e.data );
-        });
-      }
-
-      else {
-        this.recordedPages = [];
-        this.totalLength = 0;
-        this.encoder.addEventListener( "message", function( e ) {
-          that.storePage( e.data );
-        });
-      }
+        else {
+          that.eventTarget.dispatchEvent( new global.CustomEvent( 'dataAvailable', {
+            detail: e.data
+          }));
+        }
+      });
 
       // First buffer can contain old data. Don't encode it.
       this.encodeBuffers = function(){
@@ -184,11 +210,13 @@ var root = (typeof self === 'object' && self.self === self && self) || (typeof g
     }
   };
 
-  Recorder.prototype.stop = function(){
+  Interceptor.prototype.stop = function(){
     if ( this.state !== "inactive" ) {
       this.state = "inactive";
-      this.monitorNode.disconnect();
-      this.scriptProcessorNode.disconnect();
+      this.sourceNode.disconnect( this.scriptProcessorNode );
+      this.sourceNode.disconnect( this.monitorNode );
+      this.monitorNode.disconnect( this.audioContext.destination );
+      this.scriptProcessorNode.disconnect( this.audioContext.destination );
 
       if ( !this.config.leaveStreamOpen ) {
         this.clearStream();
@@ -198,54 +226,50 @@ var root = (typeof self === 'object' && self.self === self && self) || (typeof g
     }
   };
 
-  Recorder.prototype.storePage = function( page ) {
-    if ( page === null ) {
-      var outputData = new Uint8Array( this.totalLength );
-      var outputIndex = 0;
-
-      for ( var i = 0; i < this.recordedPages.length; i++ ) {
-        outputData.set( this.recordedPages[i], outputIndex );
-        outputIndex += this.recordedPages[i].length;
-      }
-
-      this.eventTarget.dispatchEvent( new global.CustomEvent( 'dataAvailable', {
-        detail: outputData
-      }));
-
-      this.recordedPages = [];
-      this.eventTarget.dispatchEvent( new global.Event( 'stop' ) );
-    }
-
-    else {
-      this.recordedPages.push( page );
-      this.totalLength += page.length;
+  Interceptor.prototype.renderPause = function(){
+    if ( this.renderState === "running" ){
+      this.renderState = "paused";
+      this.eventTarget.dispatchEvent( new global.Event( 'rpause' ) );
     }
   };
 
-  Recorder.prototype.streamPage = function( page ) {
-    if ( page === null ) {
-      this.eventTarget.dispatchEvent( new global.Event( 'stop' ) );
-    }
-
-    else {
-      this.eventTarget.dispatchEvent( new global.CustomEvent( 'dataAvailable', {
-        detail: page
-      }));
+  Interceptor.prototype.renderResume = function() {
+    if ( this.renderState === "paused" ) {
+      this.renderState = "running";
+      this.eventTarget.dispatchEvent( new global.Event( 'rresume' ) );
     }
   };
 
+  Interceptor.prototype.renderFForward = function() {
+    while ( this.renderQueue.length) {
+      this.renderQueue.shift();
+    }
+    this.eventTarget.dispatchEvent( new global.Event( 'rfforward' ) );
+  };
+
+  Interceptor.prototype.renderRICounter = function() {
+    this.renderIdleCounter = 0;
+    this.eventTarget.dispatchEvent( new global.CustomEvent( "ridle", { detail: this.renderIdleCounter } ) );
+  };
+
+  Interceptor.prototype.feedData = function( data ){
+    this.decoder.postMessage({
+      command: 'decode',
+      pages: data
+    }, [data.buffer] );
+  };
 
   // Exports
-  global.Recorder = Recorder;
+  global.Interceptor = Interceptor;
 
   if ( typeof define === 'function' && define.amd ) {
     define( [], function() {
-      return Recorder;
+      return Interceptor;
     });
   }
 
   else if ( typeof module == 'object' && module.exports ) {
-    module.exports = Recorder;
+    module.exports = Interceptor;
   }
 
 })(root);

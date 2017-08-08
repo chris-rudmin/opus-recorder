@@ -1,7 +1,7 @@
 INPUT_DIR=./src
 OUTPUT_DIR=./dist
 EMCC_OPTS=-O3 --llvm-lto 1 --memory-init-file 0 -s NO_DYNAMIC_EXECUTION=1 -s NO_FILESYSTEM=1
-DEFAULT_EXPORTS:='_free','_malloc'
+DEFAULT_EXPORTS:='_free','_malloc','_exp2'
 
 LIBOPUS_ENCODER_SRC=$(INPUT_DIR)/encoderWorker.js
 LIBOPUS_DECODER_SRC=$(INPUT_DIR)/decoderWorker.js
@@ -19,11 +19,14 @@ LIBSPEEXDSP_EXPORTS:='_speex_resampler_init','_speex_resampler_process_interleav
 RECORDER=$(OUTPUT_DIR)/recorder.min.js
 RECORDER_SRC=$(INPUT_DIR)/recorder.js
 
+INTERCEPTOR=$(OUTPUT_DIR)/interceptor.min.js
+INTERCEPTOR_SRC=$(INPUT_DIR)/interceptor.js
+
 WAVE_WORKER=$(OUTPUT_DIR)/waveWorker.min.js
 WAVE_WORKER_SRC=$(INPUT_DIR)/waveWorker.js
 
 
-default: $(LIBOPUS_ENCODER) $(LIBOPUS_DECODER) $(RECORDER) $(WAVE_WORKER) test
+default: $(LIBOPUS_ENCODER) $(LIBOPUS_DECODER) $(RECORDER) $(INTERCEPTOR) $(WAVE_WORKER) test
 
 clean:
 	rm -rf $(OUTPUT_DIR) $(LIBOPUS_DIR) $(LIBSPEEXDSP_DIR)
@@ -58,6 +61,9 @@ $(LIBOPUS_DECODER): $(LIBOPUS_DECODER_SRC) $(LIBOPUS_OBJ) $(LIBSPEEXDSP_OBJ)
 
 $(RECORDER): $(RECORDER_SRC)
 	npm run uglify -- $(RECORDER_SRC) -c -m -o $@
+
+$(INTERCEPTOR): $(INTERCEPTOR_SRC)
+	npm run uglify -- $(INTERCEPTOR_SRC) -c -m -o $@
 
 $(WAVE_WORKER): $(WAVE_WORKER_SRC)
 	npm run uglify -- $(WAVE_WORKER_SRC) -c -m -o $@
