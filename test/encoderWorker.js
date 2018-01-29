@@ -56,6 +56,7 @@ describe('encoderWorker', function() {
       expect(encoder.config).to.have.property('encoderApplication', 2049);
       expect(encoder.config).to.have.property('encoderFrameSize', 20);
       expect(encoder.config).to.have.property('bufferLength', 4096);
+      expect(encoder.config).to.have.property('monitorGain', 0);
       expect(encoder.config).to.have.property('resampleQuality', 3);
       expect(encoder.config).to.have.property('originalSampleRate', 44100);
     });
