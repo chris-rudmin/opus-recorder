@@ -6,3 +6,6 @@
 	path = speexdsp
 	url = https://git.xiph.org/speexdsp.git
   branch = SpeexDSP-1.2rc3
+[submodule "lamejs"]
+	path = lamejs
+	url = https://github.com/zhuker/lamejs
