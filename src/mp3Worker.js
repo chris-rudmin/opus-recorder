@@ -3,7 +3,7 @@
 var global = global || self;
 var encoder;
 
-importScripts('../lamejs/lame.min.js');
+importScripts('lame.min.js');
 
 global['onmessage'] = function( e ){
   switch( e['data']['command'] ){

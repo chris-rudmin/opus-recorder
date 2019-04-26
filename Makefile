@@ -27,8 +27,17 @@ WAVE_WORKER_MIN=$(OUTPUT_DIR)/waveWorker.min.js
 WAVE_WORKER=$(OUTPUT_DIR_UNMINIFIED)/waveWorker.js
 WAVE_WORKER_SRC=$(INPUT_DIR)/waveWorker.js
 
+LAMEJS_DIR=./lamejs
+LAMEJS=$(LAMEJS_DIR)/lame.min.js
+LAMEJS_OUT=$(OUTPUT_DIR)/lame.min.js
+MP3_WORKER_MIN=$(OUTPUT_DIR)/mp3Worker.min.js
+MP3_WORKER=$(OUTPUT_DIR_UNMINIFIED)/mp3Worker.js
+MP3_WORKER_SRC=$(INPUT_DIR)/mp3Worker.js
+
 
 default: $(LIBOPUS_ENCODER) $(LIBOPUS_ENCODER_MIN) $(LIBOPUS_DECODER) $(LIBOPUS_DECODER_MIN) $(RECORDER) $(RECORDER_MIN) $(WAVE_WORKER) $(WAVE_WORKER_MIN) test
+
+mp3only: $(RECORDER) $(RECORDER_MIN) $(MP3_WORKER) $(MP3_WORKER_MIN) $(LAMEJS_OUT)
 
 clean:
 	rm -rf $(OUTPUT_DIR) $(OUTPUT_DIR_UNMINIFIED) $(LIBOPUS_DIR) $(LIBSPEEXDSP_DIR)
@@ -41,7 +50,7 @@ test:
 
 .PHONY: test
 
-$(LIBOPUS_DIR)/autogen.sh $(LIBSPEEXDSP_DIR)/autogen.sh:
+$(LIBOPUS_DIR)/autogen.sh $(LIBSPEEXDSP_DIR)/autogen.sh $(LAMEJS):
 	git submodule update --init
 
 $(LIBOPUS_OBJ): $(LIBOPUS_DIR)/autogen.sh
@@ -81,3 +90,12 @@ $(WAVE_WORKER): $(WAVE_WORKER_SRC)
 
 $(WAVE_WORKER_MIN): $(WAVE_WORKER_SRC)
 	npm run webpack -- --config webpack.config.js -p --output-library WaveWorker $(WAVE_WORKER_SRC) -o $@
+
+$(MP3_WORKER): $(MP3_WORKER_SRC)
+	npm run webpack -- --config webpack.config.js -d --output-library MP3Worker $(MP3_WORKER_SRC) -o $@
+
+$(MP3_WORKER_MIN): $(MP3_WORKER_SRC)
+	npm run webpack -- --config webpack.config.js -p --output-library MP3Worker $(MP3_WORKER_SRC) -o $@
+
+$(LAMEJS_OUT): $(LAMEJS)
+	cp $(LAMEJS) $(LAMEJS_OUT)
