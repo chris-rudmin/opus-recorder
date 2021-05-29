@@ -14,6 +14,12 @@ global['onmessage'] = function( e ){
         }
         break;
 
+      case 'decodeRawPacket':
+          if (decoder){
+            decoder.decodeRawPacket( e['data']['rawPacket'] );
+          }
+          break;        
+
       case 'done':
         if (decoder) {
           decoder.sendLastBuffer();
@@ -26,6 +32,7 @@ global['onmessage'] = function( e ){
         break;
 
       default:
+        console.warn("Unsupported Message");
         // Ignore any unknown commands and continue recieving commands
     }
   });
@@ -60,6 +67,25 @@ var OggOpusDecoder = function( config, Module ){
   this.outputBuffers = [];
 };
 
+OggOpusDecoder.prototype.decodeRawPacket = function(typedArray) {
+    if (!this.inited) {
+      this.numberOfChannels = typedArray[0] & 0x04 ? 2 : 1;
+      this.init();
+      this.inited = true;
+    }
+    this.decoderBuffer.set( typedArray );
+
+    // Decode raw opus packet
+    var outputSampleLength = this._opus_decode_float( this.decoder, this.decoderBufferPointer, typedArray.length, this.decoderOutputPointer, this.decoderOutputMaxLength, 0);
+    var resampledLength = Math.ceil( outputSampleLength * this.config.outputBufferSampleRate / this.config.decoderSampleRate );
+    this.HEAP32[ this.decoderOutputLengthPointer >> 2 ] = outputSampleLength;
+    this.HEAP32[ this.resampleOutputLengthPointer >> 2 ] = resampledLength;
+    this._speex_resampler_process_interleaved_float( this.resampler, this.decoderOutputPointer, this.decoderOutputLengthPointer, this.resampleOutputBufferPointer, this.resampleOutputLengthPointer );
+    this.sendToOutputBuffers( this.HEAPF32.subarray( this.resampleOutputBufferPointer >> 2, (this.resampleOutputBufferPointer >> 2) + resampledLength * this.numberOfChannels ) );
+    this.decoderBufferIndex = 0;
+
+    return;  
+}
 
 OggOpusDecoder.prototype.decode = function( typedArray ) {
   var dataView = new DataView( typedArray.buffer );
