@@ -189,6 +189,8 @@ describe('Recorder', function(){
     expect(rec.config).to.have.property('encoderFrameSize', 20);
     expect(rec.config).to.have.property('resampleQuality', 3);
     expect(rec.config).to.have.property('wavBitDepth', 16);
+    expect(rec.config).to.have.property('rawOpus', false);
+    expect(rec.config).to.have.property('encoderOutputMaxLength', 4000);
   });
 
   it('should support Recording with Safari Webkit', function () {
@@ -230,7 +232,9 @@ describe('Recorder', function(){
       encoderApplication: 2048,
       encoderFrameSize: 40,
       resampleQuality: 10,
-      wavBitDepth: 32
+      wavBitDepth: 32,
+      rawOpus: true,
+      encoderOutputMaxLength: 100,
     });
 
     expect(rec.state).to.equal('inactive');
@@ -247,10 +251,15 @@ describe('Recorder', function(){
     expect(rec.config).to.have.property('encoderFrameSize', 40);
     expect(rec.config).to.have.property('resampleQuality', 10);
     expect(rec.config).to.have.property('wavBitDepth', 32);
+    expect(rec.config).to.have.property('rawOpus', true);
+    expect(rec.config).to.have.property('encoderOutputMaxLength', 100);
   });
 
   it('should start recording', function(){
-    var rec = new Recorder();
+    var rec = new Recorder({
+      rawOpus: true,
+      encoderOutputMaxLength: 100,
+    });
     return rec.start().then( function(){
       expect(rec.audioContext.resume).to.have.been.calledOnce;
       expect(rec.audioContext.audioWorklet.addModule).to.have.been.calledOnce;
@@ -262,7 +271,9 @@ describe('Recorder', function(){
       expect(rec.encoder.postMessage).to.have.been.calledWithMatch({ 
         command: 'init',
         wavSampleRate: 44100,
-        originalSampleRate: 44100
+        originalSampleRate: 44100,
+        rawOpus: true,
+        encoderOutputMaxLength: 100,
       });
     });
   });
@@ -360,7 +371,10 @@ describe('Recorder', function(){
   });
 
   it('the stop promise should only return when finished', function () {
-      var rec = new Recorder();
+      var rec = new Recorder({
+        rawOpus: true,
+        encoderOutputMaxLength: 100,
+      });
       var encoder;
       var clearStreamSpy = sinon.spy(rec, 'clearStream');
       var finishSpy = sinon.spy(rec, 'finish');

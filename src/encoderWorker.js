@@ -16,7 +16,9 @@ const OggOpusEncoder = function( config, Module ){
     numberOfChannels: 1,
     originalSampleRate: 44100,
     resampleQuality: 3, // Value between 0 and 10 inclusive. 10 being highest quality.
-    serial: Math.floor(Math.random() * 4294967296)
+    serial: Math.floor(Math.random() * 4294967296),
+    rawOpus: false, //Raw opus skips the ogg encapsulation
+    encoderOutputMaxLength: 4000, //4k opus encoding window
   }, config );
 
   this._opus_encoder_create = Module._opus_encoder_create;
@@ -71,13 +73,20 @@ OggOpusEncoder.prototype.encode = function( buffers ) {
     if ( this.resampleBufferIndex === this.resampleBufferLength ) {
       this._speex_resampler_process_interleaved_float( this.resampler, this.resampleBufferPointer, this.resampleSamplesPerChannelPointer, this.encoderBufferPointer, this.encoderSamplesPerChannelPointer );
       var packetLength = this._opus_encode_float( this.encoder, this.encoderBufferPointer, this.encoderSamplesPerChannel, this.encoderOutputPointer, this.encoderOutputMaxLength );
-      exportPages.concat(this.segmentPacket( packetLength ));
-      this.resampleBufferIndex = 0;
+      if ( !this.config.rawOpus ) {
+        exportPages.concat(this.segmentPacket( packetLength ));
 
-      this.framesInPage++;
-      if ( this.framesInPage >= this.config.maxFramesPerPage ) {
-        exportPages.push( this.generatePage() );
+        this.framesInPage++;
+        if ( this.framesInPage >= this.config.maxFramesPerPage ) {
+          exportPages.push( this.generatePage() );
+        }
+      } else if ( packetLength !== -1 ) {
+        // -1 is the error code returned if the encoding failed. don't return anything in this case?
+        let opusPage = new Uint8Array( HEAPU8.subarray(this.encoderOutputPointer, this.encoderOutputPointer + packetLength) );
+        const exportPage = { message: 'page', page: opusPage, samplePosition: this.granulePosition };
+        exportPages.push( exportPage );
       }
+      this.resampleBufferIndex = 0;
     }
   }
 
@@ -104,7 +113,7 @@ OggOpusEncoder.prototype.destroy = function() {
 };
 
 OggOpusEncoder.prototype.flush = function() {
-  var exportPage;
+  var exportPage = null;
   if ( this.framesInPage ) {
     exportPage = this.generatePage();
   }
@@ -126,12 +135,19 @@ OggOpusEncoder.prototype.encodeFinalFrame = function() {
       for ( var j = 0; j < this.config.numberOfChannels; j++ ) {
         finalFrameBuffers.push( new Float32Array( this.bufferLength ));
       }
-      exportPages.concat(this.encode( finalFrameBuffers ));
+
+      exportPages.concat(this.encode(finalFrameBuffers));
     }
   }
 
-  this.headerType += 4;
-  exportPages.push(this.generatePage());
+  if ( !this.config.rawOpus ) {
+    this.headerType += 4;
+    exportPages.push(this.generatePage());
+  } else {
+    const exportPage = { message: 'page', page: new Uint8Array(0), samplePosition: this.granulePosition };
+    exportPages.push(exportPage);
+  }
+
   return exportPages;
 };
 
@@ -251,7 +267,7 @@ OggOpusEncoder.prototype.initCodec = function() {
   this.encoderBufferPointer = this._malloc( this.encoderBufferLength * 4 ); // 4 bytes per sample
   this.encoderBuffer = this.HEAPF32.subarray( this.encoderBufferPointer >> 2, (this.encoderBufferPointer >> 2) + this.encoderBufferLength );
 
-  this.encoderOutputMaxLength = 4000;
+  this.encoderOutputMaxLength = this.config.encoderOutputMaxLength;
   this.encoderOutputPointer = this._malloc( this.encoderOutputMaxLength );
   this.encoderOutputBuffer = this.HEAPU8.subarray( this.encoderOutputPointer, this.encoderOutputPointer + this.encoderOutputMaxLength );
 };
@@ -319,22 +335,27 @@ if (typeof registerProcessor === 'function') {
       this.continueProcess = true;
       this.port.onmessage = ({ data }) => {
         if (this.encoder) {
-          switch( data['command'] ){
+          switch( data['command'] ) {
 
             case 'getHeaderPages':
-              this.postPage(this.encoder.generateIdPage());
-              this.postPage(this.encoder.generateCommentPage());
+              if (!this.encoder.config.rawOpus) {
+                this.postPage(this.encoder.generateIdPage());
+                this.postPage(this.encoder.generateCommentPage());
+              }
               break;
 
             case 'done':
               this.encoder.encodeFinalFrame().forEach(pageData => this.postPage(pageData));
               this.encoder.destroy();
               delete this.encoder;
-              this.port.postMessage( {message: 'done'} );
+              this.port.postMessage({message: 'done'});
               break;
 
             case 'flush':
-              this.postPage(this.encoder.flush());
+              const page = this.encoder.flush();
+              if (page) {
+                this.postPage(page);
+              }
               this.port.postMessage( {message: 'flushed'} );
               break;
 
@@ -395,8 +416,10 @@ else {
           break;
 
         case 'getHeaderPages':
-          postPageGlobal(encoder.generateIdPage());
-          postPageGlobal(encoder.generateCommentPage());
+          if ( !encoder.config.rawOpus ) {
+            postPageGlobal(encoder.generateIdPage());
+            postPageGlobal(encoder.generateCommentPage());
+          }
           break;
 
         case 'done':
@@ -407,7 +430,10 @@ else {
           break;
 
         case 'flush':
-          postPageGlobal(encoder.flush());
+          const page = encoder.flush();
+          if (page) {
+            postPageGlobal(page);
+          }
           postMessage( {message: 'flushed'} );
           break;
 

@@ -26,6 +26,8 @@ var Recorder = function( config = {} ){
     streamPages: false,
     wavBitDepth: 16,
     sourceNode: { context: null },
+    rawOpus: false,
+    encoderOutputMaxLength: 4000,
   }, config );
 
   this.encodedSamplePosition = 0;
@@ -166,12 +168,14 @@ Recorder.prototype.initWorker = function(){
     }
 
     // exclude sourceNode
-    const {sourceNode, ...config} = this.config;
+    const {sourceNode, rawOpus, encoderOutputMaxLength, ...config} = this.config;
 
     this.encoder.postMessage( Object.assign({
       command: 'init',
       originalSampleRate: this.audioContext.sampleRate,
-      wavSampleRate: this.audioContext.sampleRate
+      wavSampleRate: this.audioContext.sampleRate,
+      rawOpus: rawOpus,
+      encoderOutputMaxLength: encoderOutputMaxLength,
     }, config));
   });
 };

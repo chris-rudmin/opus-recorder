@@ -63,6 +63,8 @@ describe('encoderWorker', function() {
     expect(encoder.config).to.have.property('encoderFrameSize', 20);
     expect(encoder.config).to.have.property('resampleQuality', 3);
     expect(encoder.config).to.have.property('originalSampleRate', 44100);
+    expect(encoder.config).to.have.property('rawOpus', false);
+    expect(encoder.config).to.have.property('encoderOutputMaxLength', 4000);
   });
 
   it('should initialize encoder', function () {
@@ -204,6 +206,17 @@ describe('encoderWorker', function() {
     return getEncoder(options);
   }
 
+  function getEncoderWithRawPackets() {
+    const options = {
+      encoderFrameSize: testingFrameSize,
+      encoderSampleRate: 16000,
+      originalSampleRate: 44100,
+      encoderOutputMaxLength: 40,
+      rawOpus: true,
+    };
+    return getEncoder(options);
+  }
+
   it('should emit page when enough buffers are collected for a frame', function () {
     const encoder = getEncoderWithMaxFramesPerPage(1);
 
@@ -248,5 +261,12 @@ describe('encoderWorker', function() {
     expect(_free_spy.callCount).to.equal(_malloc_spy.callCount);
     var freedPointers = _free_spy.args.map(( args ) => args[0] );
     expect(_malloc_spy.returnValues).to.have.members(freedPointers);
+  });
+
+  it('should not output encoding failures', function () {
+    const encoder = getEncoderWithRawPackets();
+    const buf = bufferForFrames(2);
+    const message = encoder.encode(buf);
+    expect(message.length).to.equal(0);
   });
 });
