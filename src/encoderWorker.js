@@ -324,6 +324,8 @@ if (typeof registerProcessor === 'function') {
             case 'getHeaderPages':
               this.postPage(this.encoder.generateIdPage());
               this.postPage(this.encoder.generateCommentPage());
+              // Match the pre-skip. See chris-rudmin/opus-recorder#248
+              this.granulePosition = 3840;
               break;
 
             case 'done':
