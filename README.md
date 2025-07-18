@@ -4,7 +4,7 @@ A javascript library to encode the output of Web Audio API nodes in Ogg Opus or 
 
 # !!! PROJECT NO LONGER SUPPORTED !!!
 
-Heads up that this project is no longer supported. There is currently good browser support for webcodecs API which replaces the need for wasm codecs
+Heads up that this project is no longer being maintained. There is currently good browser support for webcodecs API which replaces the need for wasm codecs
 
 #### Libraries Used
 
